@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.43](https://github.com/kunchenguid/quota-axi/compare/quota-axi-v0.1.42...quota-axi-v0.1.43) (2026-09-13)
+
+
+### Bug Fixes
+
+* recognize provably unopened future model windows ([#162](https://github.com/kunchenguid/quota-axi/issues/162)) ([9e693a2](https://github.com/kunchenguid/quota-axi/commit/9e693a2cac97d64729e6953a65c90c8dde81a07c))
+
 ## [0.1.42](https://github.com/kunchenguid/quota-axi/compare/quota-axi-v0.1.41...quota-axi-v0.1.42) (2026-09-12)
 
 
