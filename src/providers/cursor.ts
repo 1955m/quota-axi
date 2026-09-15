@@ -155,7 +155,12 @@ export async function fetchQuota(
 
   const cached = readCachedProvider("cursor");
   if (cached) {
-    return staleFromCache(cached, finalError, sourceNames(attempts), attempts);
+    return staleFromCache(
+      remapCursorCachedLabels(cached),
+      finalError,
+      sourceNames(attempts),
+      attempts,
+    );
   }
 
   return failedProvider({
@@ -268,14 +273,51 @@ const CURSOR_API_USAGE_LABEL = "Other Models";
 const CURSOR_INCLUDED_ULTRA_LABEL = "Included in Ultra";
 const CURSOR_INCLUDED_USAGE_LABEL = "included usage";
 
-function isCursorUltraPlan(planName: string | undefined): boolean {
-  return planName?.trim().toLowerCase() === "ultra";
+function isCursorUltraPlan(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "ultra";
 }
 
-function cursorIncludedUsageLabel(planName: string | undefined): string {
-  return isCursorUltraPlan(planName)
-    ? CURSOR_INCLUDED_ULTRA_LABEL
-    : CURSOR_INCLUDED_USAGE_LABEL;
+function cursorAccountIsUltra(
+  plan: Record<string, unknown> | undefined,
+  membershipType: string | undefined,
+): boolean {
+  return (
+    isCursorUltraPlan(stringValue(plan?.planName)) ||
+    isCursorUltraPlan(stringValue(plan?.price)) ||
+    isCursorUltraPlan(membershipType)
+  );
+}
+
+function cursorIncludedUsageLabel(ultra: boolean): string {
+  return ultra ? CURSOR_INCLUDED_ULTRA_LABEL : CURSOR_INCLUDED_USAGE_LABEL;
+}
+
+/** Stale snapshots keep window ids and rewrite only known display labels. */
+function remapCursorCachedLabels(cached: ProviderQuota): ProviderQuota {
+  return {
+    ...cached,
+    windows: cached.windows.map((window) => {
+      const label = cursorStaleWindowLabel(
+        window.id,
+        cached.plan,
+        window.label,
+      );
+      return label === window.label ? window : { ...window, label };
+    }),
+  };
+}
+
+function cursorStaleWindowLabel(
+  id: string,
+  plan: string | undefined,
+  current: string,
+): string {
+  if (id === "auto_usage") return CURSOR_AUTO_USAGE_LABEL;
+  if (id === "api_usage") return CURSOR_API_USAGE_LABEL;
+  if (id === "included_usage" && isCursorUltraPlan(plan)) {
+    return CURSOR_INCLUDED_ULTRA_LABEL;
+  }
+  return current;
 }
 
 export function normalizeCursorUsage(
@@ -311,7 +353,9 @@ export function normalizeCursorUsage(
     windows.push(
       withRemaining({
         id: "included_usage",
-        label: cursorIncludedUsageLabel(planName),
+        label: cursorIncludedUsageLabel(
+          cursorAccountIsUltra(plan, credentials?.membershipType),
+        ),
         kind: "monthly",
         percentUsed: clampPercent(total),
         resetsAt: reset,

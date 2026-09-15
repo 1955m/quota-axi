@@ -122,6 +122,33 @@ describe("Cursor quota parsing", () => {
     });
   });
 
+  it("labels included usage Included in Ultra when membershipType is Ultra even if the plan heading is not", () => {
+    const result = normalizeCursorUsage(
+      { planUsage: { totalPercentUsed: 58 } },
+      { planInfo: { planName: "pro", price: "pro" } },
+      { membershipType: "ultra" },
+    );
+
+    expect(result?.plan).toBe("pro");
+    expect(result?.windows[0]).toMatchObject({
+      id: "included_usage",
+      label: "Included in Ultra",
+    });
+  });
+
+  it("labels included usage Included in Ultra when plan.price is Ultra even if planName is not", () => {
+    const result = normalizeCursorUsage(
+      { planUsage: { totalPercentUsed: 58 } },
+      { planInfo: { planName: "pro", price: "ultra" } },
+    );
+
+    expect(result?.plan).toBe("pro");
+    expect(result?.windows[0]).toMatchObject({
+      id: "included_usage",
+      label: "Included in Ultra",
+    });
+  });
+
   it("returns undefined when Cursor exposes no numeric quota windows", () => {
     expect(normalizeCursorUsage({ planUsage: {} })).toBeUndefined();
   });
