@@ -51,7 +51,7 @@ describe("Cursor quota parsing", () => {
       },
       {
         id: "auto_usage",
-        label: "Cursor Models (Grok and Composer)",
+        label: "Cursor Models (includes Cursor Grok and Composer)",
         kind: "monthly",
         percentUsed: 12,
         percentRemaining: 88,
@@ -96,7 +96,7 @@ describe("Cursor quota parsing", () => {
       },
       {
         id: "auto_usage",
-        label: "Cursor Models (Grok and Composer)",
+        label: "Cursor Models (includes Cursor Grok and Composer)",
         percentUsed: 63,
         percentRemaining: 37,
       },
@@ -234,7 +234,7 @@ describe("Cursor Grok Bot weekly usage", () => {
       },
       {
         id: "auto_usage",
-        label: "Cursor Models (Grok and Composer)",
+        label: "Cursor Models (includes Cursor Grok and Composer)",
         kind: "monthly",
         percentUsed: 14,
         startsAt: "2026-07-19T21:37:33.000Z",
