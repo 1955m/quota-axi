@@ -262,7 +262,8 @@ async function readCliCredentialState(
   };
 }
 
-const CURSOR_AUTO_USAGE_LABEL = "Cursor Models (includes Cursor Grok and Composer)";
+const CURSOR_AUTO_USAGE_LABEL =
+  "Cursor Models (includes Cursor Grok and Composer)";
 const CURSOR_API_USAGE_LABEL = "Other Models";
 const CURSOR_INCLUDED_ULTRA_LABEL = "Included in Ultra";
 const CURSOR_INCLUDED_USAGE_LABEL = "included usage";
