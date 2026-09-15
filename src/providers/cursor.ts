@@ -262,6 +262,21 @@ async function readCliCredentialState(
   };
 }
 
+const CURSOR_AUTO_USAGE_LABEL = "Cursor Models (Grok and Composer)";
+const CURSOR_API_USAGE_LABEL = "Other Models";
+const CURSOR_INCLUDED_ULTRA_LABEL = "Included in Ultra";
+const CURSOR_INCLUDED_USAGE_LABEL = "included usage";
+
+function isCursorUltraPlan(planName: string | undefined): boolean {
+  return planName?.trim().toLowerCase() === "ultra";
+}
+
+function cursorIncludedUsageLabel(planName: string | undefined): string {
+  return isCursorUltraPlan(planName)
+    ? CURSOR_INCLUDED_ULTRA_LABEL
+    : CURSOR_INCLUDED_USAGE_LABEL;
+}
+
 export function normalizeCursorUsage(
   usage: unknown,
   planInfo?: unknown,
@@ -295,7 +310,7 @@ export function normalizeCursorUsage(
     windows.push(
       withRemaining({
         id: "included_usage",
-        label: "included usage",
+        label: cursorIncludedUsageLabel(planName),
         kind: "monthly",
         percentUsed: clampPercent(total),
         resetsAt: reset,
@@ -308,7 +323,7 @@ export function normalizeCursorUsage(
     windows.push(
       withRemaining({
         id: "auto_usage",
-        label: "auto usage",
+        label: CURSOR_AUTO_USAGE_LABEL,
         kind: "monthly",
         percentUsed: clampPercent(auto),
         resetsAt: reset,
@@ -321,7 +336,7 @@ export function normalizeCursorUsage(
     windows.push(
       withRemaining({
         id: "api_usage",
-        label: "API usage",
+        label: CURSOR_API_USAGE_LABEL,
         kind: "monthly",
         percentUsed: clampPercent(api),
         resetsAt: reset,

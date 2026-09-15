@@ -201,7 +201,12 @@ describe("Cursor CLI-only quota refresh", () => {
         { source: "cli-authfile", status: "success" },
       ]);
       expect(result.windows).toMatchObject([
-        { id: "included_usage", percentUsed: 12, percentRemaining: 88 },
+        {
+          id: "included_usage",
+          label: "Included in Ultra",
+          percentUsed: 12,
+          percentRemaining: 88,
+        },
       ]);
       expect(bearers).toEqual([
         `Bearer ${CLI_TOKEN}`,
@@ -300,7 +305,12 @@ describe("Cursor CLI-only quota refresh", () => {
       expect(result.plan).toBe("ultra");
       expect(result.account?.email).toBe("person@example.invalid");
       expect(result.windows).toMatchObject([
-        { id: "included_usage", percentUsed: 12, percentRemaining: 88 },
+        {
+          id: "included_usage",
+          label: "Included in Ultra",
+          percentUsed: 12,
+          percentRemaining: 88,
+        },
       ]);
       // The Keychain token is the bearer of Cursor's read-only dashboard RPCs...
       expect(bearers).toEqual([
