@@ -7,6 +7,15 @@ import { describe, expect, it } from "vitest";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 /**
+ * The artifact under test here is repository configuration, not product source:
+ * the gate reads `.no-mistakes.yaml` and the `package.json` suite definition
+ * from disk, and nothing in the published package exposes either of them, so no
+ * published interface can carry this contract.
+ * `test/release-ci-exclusions.test.ts` guards `release-please-config.json` and
+ * `.github/workflows/*` the same way.
+ */
+
+/**
  * The deterministic Test baseline the no-mistakes gate must run. The gate reads
  * `commands` only from the trusted default-branch copy of `.no-mistakes.yaml`,
  * and an empty `commands.test` leaves the Test step to an open-ended agent that
