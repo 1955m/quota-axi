@@ -45,6 +45,7 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 
 - Node 20+, TypeScript, ESM-only.
 - Install dependencies with `pnpm install --frozen-lockfile`; run `pnpm run build`, `pnpm run lint`, `pnpm run format:check`, `pnpm test`, and `pnpm run build:skill -- --check` before pushing.
+- `.no-mistakes.yaml` declares the gate's Test-step commands (`pnpm install --frozen-lockfile`, then `pnpm test`) instead of leaving the step to an agent that invents its own validation commands. Keep `pnpm test` non-watch and self-terminating; `test/no-mistakes-config.test.ts` guards the declared strings.
 - Run `pnpm run format` when `pnpm run format:check` reports formatting drift.
 - After changing dependencies, run `pnpm exec prettier --write pnpm-lock.yaml` so the committed lockfile keeps its Prettier formatting.
 - Do not hand-edit `CHANGELOG.md` or `.release-please-manifest.json`.

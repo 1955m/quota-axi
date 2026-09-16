@@ -98,6 +98,7 @@ Every `pull_request` workflow must `paths-ignore` the release-please output set 
 ## Contribution gate
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) owns the contributor workflow, gate contract, exemptions, and current ruleset enforcement status.
+- The trusted default-branch `.no-mistakes.yaml` declares the gate's Test-step `commands.prepare`/`commands.test` (`pnpm install --frozen-lockfile`, then `pnpm test`) so the step is anchored to the repository's own non-watch suite rather than an empty command the agent fills in itself, and it deliberately leaves `allow_repo_commands` off so a pushed branch cannot supply executable commands. `test/no-mistakes-config.test.ts` guards the exact strings, the terminating suite definition, and that trusted-copy posture.
 - `.github/workflows/no-mistakes-required.yml` is a thin caller of the shared `kunchenguid/no-mistakes/.github/actions/require-no-mistakes` composite action, pinned to an immutable commit SHA and never `@main`. Enforcement logic and its tests live upstream in the no-mistakes repository; change enforcement there rather than copying it back here, and bump the pin in a deliberate separate PR. This repository still owns its `on:`, `concurrency`, `permissions`, job name, and author-exemption `if:`.
 
 ## Lockfile formatting

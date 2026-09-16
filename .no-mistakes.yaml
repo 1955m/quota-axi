@@ -1,0 +1,19 @@
+# Trusted no-mistakes gate configuration.
+#
+# no-mistakes reads `commands` (and `agent`) only from the default-branch copy of
+# this file, so a pushed branch cannot inject shell; `allow_repo_commands` stays
+# unset/false for the same reason. See
+# https://kunchenguid.github.io/no-mistakes/reference/repo-config/
+#
+# `commands.test` must be declared, not left empty: no-mistakes runs it as the
+# Test step's deterministic baseline, while an empty value leaves the step to an
+# open-ended agent that invents its own validation commands. The pair below is
+# the repository's own ladder: `commands.prepare` matches the install line in
+# `.airlock/lint.sh` and `.github/workflows/ci.yml`, and `commands.test` runs the
+# package's single suite definition (`pnpm run build && vitest run`, non-watch,
+# self-terminating) rather than a re-typed copy that can drift.
+# `test/no-mistakes-config.test.ts` guards both strings and the non-watch
+# property; changing them is a deliberate config change, not a refactor.
+commands:
+  prepare: pnpm install --frozen-lockfile
+  test: pnpm test
