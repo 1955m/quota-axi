@@ -27,7 +27,6 @@ import {
 import { selectCredential } from "./credential-selection.js";
 import {
   createPiCursorCredentialBroker,
-  type PiCursorCredentialBroker,
   type PiCursorCredentialInspection,
   type PiCursorCredentialResolution,
 } from "./pi-cursor-credential.js";
@@ -65,10 +64,6 @@ type UnavailableCredentialState = {
 
 type CredentialState = AvailableCredentialState | UnavailableCredentialState;
 
-type CursorDependencies = {
-  piCursorBroker: PiCursorCredentialBroker;
-};
-
 const PI_CURSOR_CREDENTIAL_SOURCE = "pi:cursor";
 /** Existing non-prompting/editor and CLI precedence remains authoritative. */
 export const CURSOR_CREDENTIAL_SOURCE_ORDER = [
@@ -77,30 +72,14 @@ export const CURSOR_CREDENTIAL_SOURCE_ORDER = [
   PI_CURSOR_CREDENTIAL_SOURCE,
 ] as const;
 
-const defaultCursorDependencies: CursorDependencies = {
-  piCursorBroker: createPiCursorCredentialBroker(),
+const piCursorBroker = createPiCursorCredentialBroker();
+
+export const cursorAdapter: ProviderAdapter = {
+  id: "cursor",
+  label: "Cursor",
+  fetchQuota,
+  inspectAuth,
 };
-
-export function createCursorAdapter(
-  overrides: Partial<CursorDependencies> = {},
-): ProviderAdapter {
-  const dependencies = { ...defaultCursorDependencies, ...overrides };
-  return {
-    id: "cursor",
-    label: "Cursor",
-    fetchQuota: (options) => fetchQuotaWithDependencies(dependencies, options),
-    inspectAuth: (options) =>
-      inspectAuthWithDependencies(dependencies, options),
-  };
-}
-
-export const cursorAdapter = createCursorAdapter();
-
-export async function fetchQuota(
-  options: ProviderOptions,
-): Promise<ProviderQuota> {
-  return fetchQuotaWithDependencies(defaultCursorDependencies, options);
-}
 
 /**
  * Cursor's editor, platform CLI, and Pi stores are independent. They stay in a
@@ -109,8 +88,7 @@ export async function fetchQuota(
  * transport, policy, decoding, rate-limit, or server failure stops the run so
  * it cannot turn into a false sign-out against a sibling credential.
  */
-async function fetchQuotaWithDependencies(
-  dependencies: CursorDependencies,
+export async function fetchQuota(
   options: ProviderOptions,
 ): Promise<ProviderQuota> {
   const attempts: SourceAttempt[] = [];
@@ -122,7 +100,7 @@ async function fetchQuotaWithDependencies(
 
   for (const source of CURSOR_CREDENTIAL_SOURCE_ORDER) {
     if (source === "cursor-cli" && !isCursorCliSourceSupported()) continue;
-    const state = await resolveCredentialSource(source, dependencies, options);
+    const state = await resolveCredentialSource(source, options);
     if (state.status !== "available" && state.status !== "expired") {
       unavailable.push(state);
       attempts.push(unavailableAttempt(state));
@@ -213,13 +191,6 @@ async function fetchQuotaWithDependencies(
 export async function inspectAuth(
   options: ProviderOptions,
 ): Promise<AuthProviderReport> {
-  return inspectAuthWithDependencies(defaultCursorDependencies, options);
-}
-
-async function inspectAuthWithDependencies(
-  dependencies: CursorDependencies,
-  options: ProviderOptions,
-): Promise<AuthProviderReport> {
   const editorState = await readCredentialState();
   const sources = [editorState.source];
   if (isCursorCliSourceSupported()) {
@@ -237,7 +208,7 @@ async function inspectAuthWithDependencies(
   }
   let piInspection: PiCursorCredentialInspection;
   try {
-    piInspection = await dependencies.piCursorBroker.inspect();
+    piInspection = await piCursorBroker.inspect();
   } catch {
     piInspection = {
       path: "",
@@ -251,14 +222,13 @@ async function inspectAuthWithDependencies(
 
 async function resolveCredentialSource(
   source: (typeof CURSOR_CREDENTIAL_SOURCE_ORDER)[number],
-  dependencies: CursorDependencies,
   options: ProviderOptions,
 ): Promise<CredentialState> {
   if (source === "state-vscdb") return readCredentialState();
   if (source === "cursor-cli") return readCliCredentialState(options);
   let resolution: PiCursorCredentialResolution;
   try {
-    resolution = await dependencies.piCursorBroker.resolve();
+    resolution = await piCursorBroker.resolve();
   } catch {
     resolution = { status: "error" };
   }
@@ -490,7 +460,7 @@ async function fetchCursorUsage(credentials: CursorCredentials): Promise<{
     sandResult.status === "fulfilled" ? sandResult.value : undefined,
   );
   if (!quota) {
-    throw new CursorRequestError("Cursor quota unavailable");
+    throw new Error("Cursor quota unavailable");
   }
   return quota;
 }
@@ -843,12 +813,6 @@ function credentialSafeErrorMessage(
   credential: string,
 ): string {
   return errorMessage(error).replaceAll(credential, "[redacted]");
-}
-
-class CursorRequestError extends Error {
-  constructor(message: string) {
-    super(message);
-  }
 }
 
 class CursorAuthError extends Error {
