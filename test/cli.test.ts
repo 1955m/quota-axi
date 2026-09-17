@@ -953,6 +953,36 @@ describe("default TOON decision blocks", () => {
     );
   });
 
+  it("states a raw credit balance instead of contradicting it with no_quota", async () => {
+    useTempCache();
+    PROVIDERS.commandcode = providerWithQuota({
+      provider: "commandcode",
+      label: "Command Code",
+      source: "api",
+      windows: [],
+      credits: { remaining: 12.5, unit: "credits" },
+      state: {
+        status: "fresh",
+        stale: false,
+        refreshedAt: "2026-07-06T18:10:00Z",
+        authStatus: "usable",
+        sourcesTried: ["pi:commandcode"],
+      },
+    });
+
+    const output = await capture(["--provider", "commandcode"]);
+
+    expect(toonRows(output, "attention")).toEqual([
+      [
+        "commandcode",
+        "all",
+        "credits",
+        "remaining 12.5 credits (auth usable)",
+        "none",
+      ],
+    ]);
+  });
+
   it("renders an unmeasurable spendPriority as `unknown`, never as 0", async () => {
     useTempCache();
     vi.useFakeTimers();

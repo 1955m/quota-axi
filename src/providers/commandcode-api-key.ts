@@ -1,6 +1,6 @@
-import { open } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { readBoundedFile } from "../lib/fs.js";
 import { usableLiteralSecret } from "../lib/secret.js";
 import {
   credentialFromPiEntry,
@@ -218,30 +218,6 @@ function inspectFromResolution(resolution: CommandCodeLocalResolution): {
 function homeDirectory(dependencies: FileSourceDependencies): string {
   const home = nonempty(dependencies.environment.HOME);
   return home ?? dependencies.homeDirectory();
-}
-
-export async function readBoundedFile(
-  path: string,
-  maxBytes: number,
-): Promise<Buffer> {
-  const file = await open(path, "r");
-  try {
-    const contents = new Uint8Array(maxBytes + 1);
-    let offset = 0;
-    while (offset < contents.byteLength) {
-      const { bytesRead } = await file.read(
-        contents,
-        offset,
-        contents.byteLength - offset,
-        null,
-      );
-      if (bytesRead === 0) break;
-      offset += bytesRead;
-    }
-    return Buffer.from(contents.buffer, contents.byteOffset, offset);
-  } finally {
-    await file.close();
-  }
 }
 
 function nonempty(value: string | undefined): string | undefined {

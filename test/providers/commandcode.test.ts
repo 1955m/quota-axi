@@ -607,6 +607,44 @@ describe("Command Code cache", () => {
     expect(report.windows.map(({ id }) => id)).toEqual(["five_hour", "weekly"]);
   });
 
+  it("prefers a context-carrying credits failure over an earlier resolver error", async () => {
+    const contextId = commandCodeCacheContextId(
+      "env:COMMAND_CODE_API_KEY",
+      "org:org_fixture",
+    );
+    const request = sequentialFetch([
+      jsonResponse(WHOAMI),
+      new Response(null, { status: 503 }),
+    ]);
+    const report = await testAdapter({
+      piBroker: piBroker({
+        status: "read_error",
+        error: "credential_resolution_failed",
+      }),
+      officialEnv: envSource("resolved", SIBLING_KEY),
+      fetch: request,
+      readCachedProvider: (id) =>
+        id === contextId ? cachedQuota() : undefined,
+    }).fetchQuota(OPTIONS);
+
+    expect(report.attempts?.[0]).toMatchObject({
+      source: "pi:commandcode",
+      status: "failed",
+      error: "credential_resolution_failed",
+      credentialPresent: true,
+    });
+    expect(request.mock.calls[0][1]?.headers).toEqual(
+      expect.objectContaining({ Authorization: `Bearer ${SIBLING_KEY}` }),
+    );
+    expect(report.state).toMatchObject({
+      status: "stale",
+      stale: true,
+      authStatus: "usable",
+      error: "provider_unavailable",
+    });
+    expect(report.windows.map(({ id }) => id)).toEqual(["five_hour", "weekly"]);
+  });
+
   it("does not use stale data when whoami fails before identity is known", async () => {
     const report = await testAdapter({
       fetch: vi.fn(async () => new Response(null, { status: 503 })),

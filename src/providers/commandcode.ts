@@ -971,6 +971,15 @@ function credentialFailureFor(
 
 function definingFailure(failures: FailureRecord[]): FailureRecord {
   return (
+    // A context-carrying stale-eligible failure can still serve this account's
+    // cached snapshot, so an earlier context-less resolver error must not
+    // suppress it. Definitive auth failures are never preferred over it.
+    failures.find(
+      (record) =>
+        !record.failure.definitiveAuth &&
+        record.failure.staleEligible &&
+        record.cacheContextId !== undefined,
+    ) ??
     failures.find((record) => !record.failure.definitiveAuth) ??
     failures.find((record) => record.credentialPresent) ??
     failures[0] ?? {
