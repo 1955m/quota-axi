@@ -75,7 +75,6 @@ function mockProcess(state: ProcessState): { calls: string[][] } {
 
 type TokenBehavior = {
   usageStatus?: number;
-  accountId?: string;
   percentUsed?: number;
 };
 
@@ -94,14 +93,6 @@ function stubCursorApi(byToken: Record<string, TokenBehavior>): {
       const behavior = byToken[token] ?? {};
       bearers.push(bearer);
       urls.push(url);
-      if (url.endsWith("/auth/full_stripe_profile")) {
-        return new Response(
-          JSON.stringify(
-            behavior.accountId ? { customerId: behavior.accountId } : {},
-          ),
-          { status: 200 },
-        );
-      }
       if (url.includes("GetCurrentPeriodUsage")) {
         const status = behavior.usageStatus ?? 200;
         return new Response(
@@ -173,23 +164,15 @@ describe("Cursor Pi credential source", () => {
     writePiCredential();
     writeCliCredential();
     mockProcess({ editorToken: EDITOR_TOKEN });
-    const api = stubCursorApi({
-      [EDITOR_TOKEN]: { accountId: "acct-editor" },
-      [CLI_TOKEN]: { accountId: "acct-cli" },
-      [PI_TOKEN]: { accountId: "acct-pi" },
-    });
+    const api = stubCursorApi({});
 
     await onLinux(async () => {
       const { fetchQuota } = await import("../../src/providers/cursor.js");
       const result = await fetchQuota(options);
 
       expect(result.attempts).toEqual([{ source: "api", status: "success" }]);
-      expect(api.bearers).toHaveLength(4);
-      expect(api.bearers).toEqual(Array(4).fill(`Bearer ${EDITOR_TOKEN}`));
-      expect(result.account).toMatchObject({
-        accountId: "acct-editor",
-        identityStatus: "verified",
-      });
+      expect(api.bearers).toHaveLength(3);
+      expect(api.bearers).toEqual(Array(3).fill(`Bearer ${EDITOR_TOKEN}`));
     });
   });
 
@@ -197,10 +180,7 @@ describe("Cursor Pi credential source", () => {
     writePiCredential();
     writeCliCredential();
     mockProcess({});
-    const api = stubCursorApi({
-      [CLI_TOKEN]: { accountId: "acct-cli" },
-      [PI_TOKEN]: { accountId: "acct-pi" },
-    });
+    const api = stubCursorApi({});
 
     await onLinux(async () => {
       const { fetchQuota } = await import("../../src/providers/cursor.js");
@@ -214,7 +194,7 @@ describe("Cursor Pi credential source", () => {
         source: "cli-authfile",
         status: "success",
       });
-      expect(api.bearers).toEqual(Array(4).fill(`Bearer ${CLI_TOKEN}`));
+      expect(api.bearers).toEqual(Array(3).fill(`Bearer ${CLI_TOKEN}`));
     });
   });
 
@@ -222,7 +202,7 @@ describe("Cursor Pi credential source", () => {
     writePiCredential();
     const processMock = mockProcess({});
     const api = stubCursorApi({
-      [PI_TOKEN]: { accountId: "acct-ultra", percentUsed: 37 },
+      [PI_TOKEN]: { percentUsed: 37 },
     });
 
     await onLinux(async () => {
@@ -234,10 +214,6 @@ describe("Cursor Pi credential source", () => {
       expect(result.windows).toMatchObject([
         { id: "included_usage", percentUsed: 37, percentRemaining: 63 },
       ]);
-      expect(result.account).toMatchObject({
-        accountId: "acct-ultra",
-        identityStatus: "verified",
-      });
       expect(result.state.sourcesTried).toEqual([
         "state-vscdb",
         "cli-authfile",
@@ -247,7 +223,7 @@ describe("Cursor Pi credential source", () => {
         source: "pi:cursor",
         status: "success",
       });
-      expect(api.bearers).toEqual(Array(4).fill(`Bearer ${PI_TOKEN}`));
+      expect(api.bearers).toEqual(Array(3).fill(`Bearer ${PI_TOKEN}`));
       expect(
         api.urls.every((url) => url.startsWith("https://api2.cursor.sh/")),
       ).toBe(true);
@@ -262,8 +238,8 @@ describe("Cursor Pi credential source", () => {
     writePiCredential();
     mockProcess({ editorToken: EDITOR_TOKEN });
     stubCursorApi({
-      [EDITOR_TOKEN]: { usageStatus: 401, accountId: "acct-ultra" },
-      [PI_TOKEN]: { accountId: "acct-ultra", percentUsed: 31 },
+      [EDITOR_TOKEN]: { usageStatus: 401 },
+      [PI_TOKEN]: { percentUsed: 31 },
     });
 
     await onLinux(async () => {
@@ -304,7 +280,7 @@ describe("Cursor Pi credential source", () => {
     });
     mockProcess({});
     const api = stubCursorApi({
-      [PI_TOKEN]: { usageStatus: 401, accountId: "acct-ultra" },
+      [PI_TOKEN]: { usageStatus: 401 },
     });
 
     await onLinux(async () => {
@@ -335,8 +311,8 @@ describe("Cursor Pi credential source", () => {
     writePiCredential();
     mockProcess({ editorToken: EDITOR_TOKEN });
     const api = stubCursorApi({
-      [EDITOR_TOKEN]: { usageStatus: 500, accountId: "acct-editor" },
-      [PI_TOKEN]: { accountId: "acct-pi" },
+      [EDITOR_TOKEN]: { usageStatus: 500 },
+      [PI_TOKEN]: {},
     });
 
     await onLinux(async () => {
@@ -346,7 +322,7 @@ describe("Cursor Pi credential source", () => {
       expect(result.state.status).toBe("error");
       expect(result.state.status).not.toBe("auth_required");
       expect(result.state.error).toBe("Cursor quota unavailable (500)");
-      expect(api.bearers).toEqual(Array(4).fill(`Bearer ${EDITOR_TOKEN}`));
+      expect(api.bearers).toEqual(Array(3).fill(`Bearer ${EDITOR_TOKEN}`));
       expect(result.state.sourcesTried).toEqual(["api"]);
     });
   });
@@ -408,14 +384,8 @@ describe("Cursor Pi credential source", () => {
     const processState: ProcessState = { editorToken: EDITOR_TOKEN };
     mockProcess(processState);
     const behavior: Record<string, TokenBehavior> = {
-      [EDITOR_TOKEN]: {
-        accountId: "acct-same",
-        percentUsed: 44,
-      },
-      [PI_TOKEN]: {
-        accountId: "acct-same",
-        percentUsed: 22,
-      },
+      [EDITOR_TOKEN]: { percentUsed: 44 },
+      [PI_TOKEN]: { percentUsed: 22 },
     };
     stubCursorApi(behavior);
 
@@ -433,29 +403,19 @@ describe("Cursor Pi credential source", () => {
 
       processState.editorToken = undefined;
       behavior[PI_TOKEN].usageStatus = 500;
-      const sameAccount = await fetchQuota(options);
-      expect(sameAccount.state.status).toBe("error");
-      expect(sameAccount.state.stale).toBe(false);
-      expect(sameAccount.windows).toEqual([]);
-      expect(sameAccount.state.sourcesTried).not.toContain("cache");
-      expect(sameAccount.state.error).toBe("Cursor quota unavailable (500)");
+      const failedPiRead = await fetchQuota(options);
+      expect(failedPiRead.state.status).toBe("error");
+      expect(failedPiRead.state.stale).toBe(false);
+      expect(failedPiRead.windows).toEqual([]);
+      expect(failedPiRead.state.sourcesTried).not.toContain("cache");
+      expect(failedPiRead.state.error).toBe("Cursor quota unavailable (500)");
 
-      behavior[PI_TOKEN].accountId = "acct-different";
-      const differentAccount = await fetchQuota(options);
-      expect(differentAccount.state.status).toBe("error");
-      expect(differentAccount.state.stale).toBe(false);
-      expect(differentAccount.windows).toEqual([]);
-      expect(differentAccount.state.sourcesTried).not.toContain("cache");
-
-      // An earlier source's verified identity must not leak across a later
-      // source attempt whose account cannot be verified.
       processState.editorToken = EDITOR_TOKEN;
       behavior[EDITOR_TOKEN]!.usageStatus = 401;
-      behavior[PI_TOKEN]!.accountId = undefined;
-      const unverifiedAfterHandover = await fetchQuota(options);
-      expect(unverifiedAfterHandover.state.status).toBe("error");
-      expect(unverifiedAfterHandover.state.stale).toBe(false);
-      expect(unverifiedAfterHandover.state.sourcesTried).not.toContain("cache");
+      const afterHandover = await fetchQuota(options);
+      expect(afterHandover.state.status).toBe("error");
+      expect(afterHandover.state.stale).toBe(false);
+      expect(afterHandover.state.sourcesTried).not.toContain("cache");
     });
   });
 });

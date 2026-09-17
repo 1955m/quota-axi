@@ -242,7 +242,6 @@ describe("Cursor credential-state reporting", () => {
       "GetCurrentPeriodUsage",
       "GetPlanInfo",
       "GetSandUsageStatus",
-      "full_stripe_profile",
     ]);
     expect(result.state.status).toBe("fresh");
     expect(result.windows.map((window) => window.id)).toEqual([

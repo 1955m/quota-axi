@@ -367,7 +367,6 @@ export function normalizeCursorUsage(
   planInfo?: unknown,
   credentials?: Pick<CursorCredentials, "email" | "membershipType">,
   sandUsage?: unknown,
-  accountProfile?: unknown,
 ):
   | {
       plan?: string;
@@ -461,20 +460,9 @@ export function normalizeCursorUsage(
   if (grokBot !== undefined) windows.push(grokBot);
 
   if (windows.length === 0) return undefined;
-  const remoteAccountId = cursorRemoteAccountId(
-    accountProfile,
-    usage,
-    planInfo,
-    sandUsage,
-  );
   return {
     plan: planName,
-    account: {
-      email: credentials?.email,
-      ...(remoteAccountId
-        ? { accountId: remoteAccountId, identityStatus: "verified" as const }
-        : { identityStatus: "unverified" as const }),
-    },
+    account: { email: credentials?.email },
     windows,
     refreshedAt: nowIso(),
   };
@@ -487,13 +475,11 @@ async function fetchCursorUsage(credentials: CursorCredentials): Promise<{
   credits?: ProviderQuota["credits"];
   refreshedAt: string;
 }> {
-  const [usageResult, planResult, sandResult, profileResult] =
-    await Promise.allSettled([
-      postDashboardRpc(credentials.accessToken, "GetCurrentPeriodUsage"),
-      postDashboardRpc(credentials.accessToken, "GetPlanInfo"),
-      postDashboardRpc(credentials.accessToken, "GetSandUsageStatus"),
-      getCursorAccountProfile(credentials.accessToken),
-    ]);
+  const [usageResult, planResult, sandResult] = await Promise.allSettled([
+    postDashboardRpc(credentials.accessToken, "GetCurrentPeriodUsage"),
+    postDashboardRpc(credentials.accessToken, "GetPlanInfo"),
+    postDashboardRpc(credentials.accessToken, "GetSandUsageStatus"),
+  ]);
   if (usageResult.status === "rejected") {
     throw usageResult.reason;
   }
@@ -502,36 +488,11 @@ async function fetchCursorUsage(credentials: CursorCredentials): Promise<{
     planResult.status === "fulfilled" ? planResult.value : undefined,
     credentials,
     sandResult.status === "fulfilled" ? sandResult.value : undefined,
-    profileResult.status === "fulfilled" ? profileResult.value : undefined,
   );
   if (!quota) {
     throw new CursorRequestError("Cursor quota unavailable");
   }
   return quota;
-}
-
-/** Optional identity evidence; quota remains usable if the profile is absent. */
-async function getCursorAccountProfile(accessToken: string): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-  try {
-    const response = await providerFetch(
-      `${API_URL}/auth/full_stripe_profile`,
-      {
-        method: "GET",
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-          accept: "application/json",
-        },
-        redirect: "error",
-        signal: controller.signal,
-      },
-    );
-    rejectUnusableUsageResponse(response);
-    return response.json();
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 async function postDashboardRpc(
@@ -875,49 +836,6 @@ function cursorFailureReport(
         : {}),
     },
   };
-}
-
-function cursorRemoteAccountId(...payloads: unknown[]): string | undefined {
-  for (const payload of payloads) {
-    const data = objectValue(payload);
-    if (!data) continue;
-    const records = [
-      data,
-      objectValue(data.account),
-      objectValue(data.user),
-      objectValue(data.profile),
-      objectValue(data.planInfo),
-    ];
-    for (const record of records) {
-      if (!record) continue;
-      for (const key of [
-        "accountId",
-        "account_id",
-        "userId",
-        "user_id",
-        "customerId",
-        "customer_id",
-        "stripeCustomerId",
-        "stripe_customer_id",
-      ]) {
-        const value = remoteIdentityString(record[key]);
-        if (value) return value;
-      }
-    }
-  }
-  return undefined;
-}
-
-function remoteIdentityString(value: unknown): string | undefined {
-  if (typeof value !== "string" || value.length === 0 || value.length > 512) {
-    return undefined;
-  }
-  return [...value].some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 0x1f || code === 0x7f;
-  })
-    ? undefined
-    : value;
 }
 
 function credentialSafeErrorMessage(
