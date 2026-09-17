@@ -56,8 +56,25 @@ function runsSuiteOnce(command: string): boolean {
 
 type NoMistakesConfig = {
   commands?: Record<string, unknown>;
+  test?: { instructions?: unknown };
   allow_repo_commands?: unknown;
 };
+
+/**
+ * The text no-mistakes actually injects into the Test step's evidence prompt.
+ * The daemon removes merge-conflict markers and collapses runs of whitespace
+ * before injecting `test.instructions`, and rejects a value left empty by that
+ * normalization, so the injected runbook - not the raw source - is what a valid
+ * instruction must survive as. An empty result means the runbook would be
+ * dropped or the config rejected.
+ */
+function injectedRunbook(instructions: unknown): string {
+  if (typeof instructions !== "string") return "";
+  return instructions
+    .replace(/^(?:<{7}|={7}|>{7})[^\n]*$/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function readConfig(): NoMistakesConfig {
   const raw = readFileSync(join(root, ".no-mistakes.yaml"), "utf8");
@@ -111,6 +128,25 @@ describe("no-mistakes trusted configuration", () => {
 
   it("rejects the repository's own watch script as the gate suite", () => {
     expect(runsSuiteOnce(readScripts()["test:watch"] ?? "")).toBe(false);
+  });
+
+  it("declares a trusted runbook that points the Test agent at the deterministic suite", () => {
+    // The Test step still launches an agent after `commands.test`; this runbook
+    // is the trusted bound on its own scenarios, and it must name the same
+    // deterministic suite the baseline runs rather than let the agent invent
+    // live network or host-discovery validation.
+    const runbook = injectedRunbook(readConfig().test?.instructions);
+    expect(runbook).not.toBe("");
+    expect(runbook).toContain(expectedCommands.test);
+  });
+
+  it("rejects a runbook that normalizes to nothing", () => {
+    // no-mistakes rejects `test.instructions` that these same rules leave
+    // empty, so the guard above cannot pass on a value the daemon drops.
+    expect(injectedRunbook(undefined)).toBe("");
+    expect(injectedRunbook(42)).toBe("");
+    expect(injectedRunbook("   \n\t ")).toBe("");
+    expect(injectedRunbook("<<<<<<< ours\n=======\n>>>>>>> theirs")).toBe("");
   });
 
   it("keeps observable command execution on the trusted copy", () => {
