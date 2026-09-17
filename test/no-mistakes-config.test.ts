@@ -61,19 +61,28 @@ type NoMistakesConfig = {
 };
 
 /**
- * The text no-mistakes actually injects into the Test step's evidence prompt.
- * The daemon removes merge-conflict markers and collapses runs of whitespace
- * before injecting `test.instructions`, and rejects a value left empty by that
- * normalization, so the injected runbook - not the raw source - is what a valid
- * instruction must survive as. An empty result means the runbook would be
- * dropped or the config rejected.
+ * The runbook as the Test step's agent receives it: no-mistakes trims
+ * `test.instructions` and collapses its whitespace before injecting it into the
+ * evidence prompt, so the normalized, lowercased clauses - not the raw YAML
+ * source - are the emitted-prompt interface these checks describe.
  */
-function injectedRunbook(instructions: unknown): string {
-  if (typeof instructions !== "string") return "";
+function runbookClauses(instructions: unknown): string[] {
+  if (typeof instructions !== "string") return [];
   return instructions
-    .replace(/^(?:<{7}|={7}|>{7})[^\n]*$/gm, "")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .toLowerCase()
+    .split(/(?<=\.)\s+/)
+    .filter(Boolean);
+}
+
+/**
+ * True when a prompt clause states a prohibition ("do not", "never", "no")
+ * about the given subject, so each forbidden behaviour has to be named next to
+ * the instruction that forbids it rather than merely appearing somewhere.
+ */
+function forbids(clause: string, subject: RegExp): boolean {
+  return /\b(?:do not|never|no)\b/.test(clause) && subject.test(clause);
 }
 
 function readConfig(): NoMistakesConfig {
@@ -130,23 +139,51 @@ describe("no-mistakes trusted configuration", () => {
     expect(runsSuiteOnce(readScripts()["test:watch"] ?? "")).toBe(false);
   });
 
-  it("declares a trusted runbook that points the Test agent at the deterministic suite", () => {
+  it("declares a trusted runbook that requires the deterministic suite and bounds the agent", () => {
     // The Test step still launches an agent after `commands.test`; this runbook
-    // is the trusted bound on its own scenarios, and it must name the same
-    // deterministic suite the baseline runs rather than let the agent invent
-    // live network or host-discovery validation.
-    const runbook = injectedRunbook(readConfig().test?.instructions);
+    // is the trusted bound on its own scenarios, so it must name the same
+    // deterministic suite the baseline runs and forbid each live or unbounded
+    // probe the round-1 finding called out.
+    const config = readConfig();
+    const clauses = runbookClauses(config.test?.instructions);
+    const runbook = clauses.join(" ");
+
+    expect(config.test?.instructions).toBeTypeOf("string");
     expect(runbook).not.toBe("");
     expect(runbook).toContain(expectedCommands.test);
+    expect(
+      clauses.some(
+        (clause) =>
+          /\bscenarios?\b/.test(clause) && /\bbounded\b|\blocal\b/.test(clause),
+      ),
+    ).toBe(true);
+
+    const forbiddenSubjects = [
+      /\bnetwork\b/,
+      /\bcredential\b/,
+      /\brefresh\b|\bexchange\b/,
+      /\bproxy\b/,
+      /\bhosts?\b|\bports?\b/,
+      /\bfilesystem\b/,
+      /\bindefinitely\b|\bunbounded\b/,
+    ];
+    const unguarded = forbiddenSubjects.filter(
+      (subject) => !clauses.some((clause) => forbids(clause, subject)),
+    );
+    expect(unguarded).toEqual([]);
   });
 
-  it("rejects a runbook that normalizes to nothing", () => {
-    // no-mistakes rejects `test.instructions` that these same rules leave
-    // empty, so the guard above cannot pass on a value the daemon drops.
-    expect(injectedRunbook(undefined)).toBe("");
-    expect(injectedRunbook(42)).toBe("");
-    expect(injectedRunbook("   \n\t ")).toBe("");
-    expect(injectedRunbook("<<<<<<< ours\n=======\n>>>>>>> theirs")).toBe("");
+  it("credits a prohibition only when the clause forbids the behaviour it names", () => {
+    // The guard above relies on this distinction: a runbook that mentions a
+    // behaviour without forbidding it must not count.
+    expect(forbids("do not start a proxy", /\bproxy\b/)).toBe(true);
+    expect(
+      forbids("never refresh, mint, or exchange a credential", /\brefresh\b/),
+    ).toBe(true);
+    expect(forbids("start a proxy and probe hosts", /\bproxy\b/)).toBe(false);
+    expect(forbids("do not search the whole filesystem", /\bnetwork\b/)).toBe(
+      false,
+    );
   });
 
   it("keeps observable command execution on the trusted copy", () => {
