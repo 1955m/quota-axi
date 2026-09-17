@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { resolvePiAuthFilePath } from "../lib/pi-agent-dir.js";
 import { classifyPiAuthEntry } from "../lib/pi-auth-store.js";
 import { usableLiteralSecret } from "../lib/secret.js";
 
@@ -94,7 +94,8 @@ async function resolveCredential(
   if (classified.status !== "present") return classified;
   const { entry } = classified;
 
-  if (entry.type === "api_key") {
+  const type = stringValue(entry.type)?.toLowerCase();
+  if (type === "api_key") {
     const key = usableLiteralSecret(entry.key);
     if (key === undefined || !validOptionalEnvironment(entry)) {
       return { status: "invalid" };
@@ -102,7 +103,7 @@ async function resolveCredential(
     return { status: "available", kind: "api_key", credential: key };
   }
 
-  if (entry.type === "oauth") {
+  if (type === "oauth") {
     const access = usableLiteralSecret(entry.access);
     const expires = millisecondTimestamp(entry.expires);
     // Pi's OAuth shape always has a string refresh value. quota-axi checks the
@@ -122,9 +123,7 @@ async function resolveCredential(
     return { status: "available", kind: "oauth", credential: access };
   }
 
-  return entry.type === undefined
-    ? { status: "invalid" }
-    : { status: "unsupported" };
+  return type === undefined ? { status: "invalid" } : { status: "unsupported" };
 }
 
 function inspectionFor(
@@ -180,22 +179,14 @@ function millisecondTimestamp(value: unknown): number | undefined {
 }
 
 function authFilePath(dependencies: BrokerDependencies): string {
-  return join(piAgentDirectory(dependencies), "auth.json");
+  return resolvePiAuthFilePath(
+    dependencies.environment,
+    dependencies.homeDirectory,
+  );
 }
 
-function piAgentDirectory(dependencies: BrokerDependencies): string {
-  const home = () =>
-    nonempty(dependencies.environment.HOME) ?? dependencies.homeDirectory();
-  const configured = nonempty(dependencies.environment.PI_CODING_AGENT_DIR);
-  if (configured === undefined) return join(home(), ".pi", "agent");
-  if (configured === "~") return home();
-  if (
-    configured.startsWith("~/") ||
-    (process.platform === "win32" && configured.startsWith("~\\"))
-  ) {
-    return join(home(), configured.slice(2));
-  }
-  return configured;
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 async function readBoundedFile(
@@ -220,10 +211,6 @@ async function readBoundedFile(
   } finally {
     await file.close();
   }
-}
-
-function nonempty(value: string | undefined): string | undefined {
-  return value && value.length > 0 ? value : undefined;
 }
 
 function errorCode(error: unknown): string | undefined {

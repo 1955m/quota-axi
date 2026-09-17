@@ -321,7 +321,7 @@ describe("Cursor Pi credential source", () => {
       });
       expect(api.bearers).toContain(`Bearer ${PI_TOKEN}`);
       expect(result.state).toMatchObject({
-        status: "auth_required",
+        status: "unavailable",
         authStatus: "expired_refreshable",
         reason: "credentials_expired",
       });

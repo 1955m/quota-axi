@@ -240,7 +240,7 @@ describe("Cursor CLI-only quota refresh", () => {
     });
   });
 
-  it("does not reuse a contextless cache when the Linux auth-file token is rejected", async () => {
+  it("does not serve a cached snapshot when the Linux auth-file token is rejected", async () => {
     writeCliAuthFile();
     mockProcess({});
     vi.stubGlobal(
@@ -250,6 +250,8 @@ describe("Cursor CLI-only quota refresh", () => {
 
     await onLinux(async () => {
       await seedCache();
+      const { readCachedProvider } = await import("../../src/cache.js");
+      expect(readCachedProvider("cursor")?.windows[0]?.percentUsed).toBe(100);
       const { fetchQuota } = await import("../../src/providers/cursor.js");
       const result = await fetchQuota({
         allowKeychainPrompt: false,

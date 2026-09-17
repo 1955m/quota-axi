@@ -20,7 +20,6 @@ import {
   successProvider,
   withRemaining,
 } from "./common.js";
-import { withCursorCacheContext } from "./cursor-cache-context.js";
 import {
   isCursorCliSourceSupported,
   readCursorCliCredentialState,
@@ -832,7 +831,7 @@ function cursorSuccess(
   quota: Awaited<ReturnType<typeof fetchCursorUsage>>,
   attempts: SourceAttempt[],
 ): ProviderQuota {
-  const report = successProvider({
+  return successProvider({
     provider: "cursor",
     label: "Cursor",
     source: "api",
@@ -844,11 +843,6 @@ function cursorSuccess(
     sourcesTried: sourceNames(attempts),
     attempts,
   });
-  const remoteAccountId =
-    quota.account?.identityStatus === "verified"
-      ? quota.account.accountId
-      : undefined;
-  return withCursorCacheContext(report, remoteAccountId);
 }
 
 function cursorFailureReport(
@@ -860,7 +854,11 @@ function cursorFailureReport(
   const report = failedProvider({
     provider: "cursor",
     label: "Cursor",
-    status: retryAfter ? "rate_limited" : statusFromError(error),
+    status: retryAfter
+      ? "rate_limited"
+      : authStatus === "expired_refreshable"
+        ? "unavailable"
+        : statusFromError(error),
     error,
     retryAfter,
     sourcesTried: sourceNames(attempts),

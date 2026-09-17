@@ -63,6 +63,47 @@ describe("Pi Cursor credential broker", () => {
     expectSnapshotEqual(authPath, before);
   });
 
+  it("reads Pi's credential type case-insensitively like the sibling readers", async () => {
+    const apiKeyPath = authFixture({
+      cursor: { type: "API_KEY", key: "literal-cursor-token" },
+    });
+    await expect(brokerFor(apiKeyPath).resolve()).resolves.toEqual({
+      status: "available",
+      kind: "api_key",
+      credential: "literal-cursor-token",
+    });
+
+    const oauthPath = authFixture(oauthEntry({ type: "OAuth" }));
+    await expect(brokerFor(oauthPath).resolve()).resolves.toEqual({
+      status: "available",
+      kind: "oauth",
+      credential: "literal-cursor-access",
+    });
+  });
+
+  it("treats a blank PI_CODING_AGENT_DIR as unset like the sibling readers", async () => {
+    const home = temporaryDirectory();
+    const authPath = join(home, ".pi", "agent", "auth.json");
+    writeAuth(authPath, {
+      cursor: { type: "api_key", key: "read-only-cursor-token" },
+    });
+    const broker = createPiCursorCredentialBroker({
+      environment: { HOME: home, PI_CODING_AGENT_DIR: " " },
+      homeDirectory: () => home,
+      now: () => NOW,
+    });
+
+    await expect(broker.resolve()).resolves.toEqual({
+      status: "available",
+      kind: "api_key",
+      credential: "read-only-cursor-token",
+    });
+    await expect(broker.inspect()).resolves.toEqual({
+      path: authPath,
+      status: "available",
+    });
+  });
+
   it("probes a stored-expired OAuth access token without reading refresh into output", async () => {
     const access = "stored-expired-cursor-access";
     const refresh = "private-refresh-value";
