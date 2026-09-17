@@ -61,10 +61,10 @@ type NoMistakesConfig = {
 };
 
 /**
- * The runbook as the Test step's agent receives it: no-mistakes trims
- * `test.instructions` and collapses its whitespace before injecting it into the
- * evidence prompt, so the normalized, lowercased clauses - not the raw YAML
- * source - are the emitted-prompt interface these checks describe.
+ * The runbook flattened into lowercase, whitespace-collapsed clauses so each
+ * required or forbidden behaviour can be asserted next to the instruction that
+ * states it. The clause view is an assertion aid, not a model of the prompt
+ * no-mistakes assembles from `test.instructions`.
  */
 function runbookClauses(instructions: unknown): string[] {
   if (typeof instructions !== "string") return [];
@@ -143,7 +143,7 @@ describe("no-mistakes trusted configuration", () => {
     // The Test step still launches an agent after `commands.test`; this runbook
     // is the trusted bound on its own scenarios, so it must name the same
     // deterministic suite the baseline runs and forbid each live or unbounded
-    // probe the round-1 finding called out.
+    // probe.
     const config = readConfig();
     const clauses = runbookClauses(config.test?.instructions);
     const runbook = clauses.join(" ");
