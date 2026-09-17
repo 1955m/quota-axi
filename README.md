@@ -196,7 +196,7 @@ $ quota-axi --provider claude --json
 $ quota-axi auth
 bin: ~/.npm/_npx/.../quota-axi
 description: Inspect local quota auth sources without printing secret values
-auth[17]{provider,source,path,status,error}:
+auth[18]{provider,source,path,status,error}:
   claude,oauth-file,~/.claude/.credentials.json,available,none
   claude,keychain,none,skipped,keychain_prompt_required
   codex,auth-json,~/.codex/auth.json,available,none
@@ -204,6 +204,7 @@ auth[17]{provider,source,path,status,error}:
   codex,cli-rpc,~/.local/bin/codex,available,none
   cursor,state-vscdb,~/Library/Application Support/Cursor/User/globalStorage/state.vscdb,available,none
   cursor,cli-keychain,~/.cursor/cli-config.json,skipped,keychain_prompt_required
+  cursor,pi:cursor,~/.pi/agent/auth.json,missing,none
   copilot,apps-json,~/.config/github-copilot/apps.json,available,none
   copilot,gh:hosts.yml,~/.config/gh/hosts.yml,available,none
   grok,auth-json,~/.grok/auth.json,available,none
@@ -705,7 +706,7 @@ The Claude and Codex rows describe default discovery; [`--profile-only`](#profil
 - Editor source: it uses `sqlite3 -readonly` to read `cursorAuth` values and calls Cursor's first-party dashboard RPCs. If `sqlite3` is unavailable, that source is reported as skipped with `sqlite3_unavailable`.
 - CLI source: on macOS, `cli-config.json` holds sign-in identity only and is never a token; its `authInfo` supplies the reported account email, and the access token is read from the login Keychain item `cursor-access-token` / `cursor-user` only under `--allow-keychain-prompt` or an existing account-scoped non-secret access marker. On Linux, `cli-authfile` reads only `accessToken` from `$CURSOR_CLI_CONFIG` or `${XDG_CONFIG_HOME:-~/.config}/cursor/auth.json`; missing, unreadable, malformed, or empty files are unavailable. The sibling refresh token is never read.
 - Pi source: quota-axi opens only Pi's exact `cursor` property read-only with a strict 64 KiB cap. It accepts Pi's standard `type: "oauth"` shape only with a literal nonempty `access`, string `refresh`, and numeric millisecond `expires`, or `type: "api_key"` only with a literal nonempty `key` (and, when present, a string-valued `env` object). Control bytes and environment/template/command references are invalid and never resolved. A stored-expired OAuth access token is still probed in Pi's fixed source position; only Cursor's rejection marks it dead. The refresh property is checked for shape and presence only, and its value is never copied, sent, or exchanged.
-- quota-axi never refreshes Cursor credentials, and Cursor has no delegated refresh. Neither the Linux auth-file refresh token, the macOS `cursor-refresh-token` Keychain item, nor Pi's OAuth refresh value is used, and no non-interactive `cursor-agent` or Pi command was observed to rotate the stored session safely. An expired Pi token remains `expired_refreshable` after definitive rejection because Pi can still own recovery, reported as `state.status: unavailable` and never `auth_required`, but quota-axi neither launches Pi nor performs that recovery. Rejected system credentials require signing in again outside quota-axi. This is a known limitation, not a silent gap.
+- quota-axi never refreshes Cursor credentials, and Cursor has no delegated refresh. Neither the Linux auth-file refresh token, the macOS `cursor-refresh-token` Keychain item, nor Pi's OAuth refresh value is used, and no non-interactive `cursor-agent` or Pi command was observed to rotate the stored session safely. An expired Pi token remains `expired_refreshable` after definitive rejection because Pi can still own recovery, reported as `state.status: unavailable` with `state.reason: credentials_expired` and never `auth_required`, but quota-axi neither launches Pi nor performs that recovery. Rejected system credentials require signing in again outside quota-axi. This is a known limitation, not a silent gap.
 - The access token value is used only as the bearer of Cursor's read-only dashboard RPCs (`GetCurrentPeriodUsage`, `GetPlanInfo`, and `GetSandUsageStatus`). It is never logged, hashed, cached, or included in output, and the reported account is the credential's email alone. A failed live Cursor read stays failed and never serves a cached snapshot, so switching between editor, CLI, and Pi can never serve another account's windows. quota-axi does not call Grok Bot trial, banked-reset, or machine-registration methods.
 
 **GitHub Copilot**
