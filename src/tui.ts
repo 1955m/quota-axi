@@ -218,6 +218,7 @@ function buildLiveCard(provider: ProviderQuota, generatedAtMs: number): Card {
       rightTitle,
       "border",
     ),
+    ...accountCardLines(provider, "border"),
     interior([], "border"),
   ];
 
@@ -405,6 +406,7 @@ function buildFailedCard(provider: ProviderQuota): Card {
       rightTitle,
       "borderDim",
     ),
+    ...accountCardLines(provider, "borderDim"),
     interior([], "borderDim"),
   ];
   const message =
@@ -735,7 +737,11 @@ function formatHeaderTime(iso: string, timeZone?: string): string {
 }
 
 function fullFooterLines(provider: ProviderQuota, width: number): string[] {
-  const accountParts: string[] = [provider.provider];
+  const accountKey = configuredAccountKey(provider);
+  const accountParts: string[] = [
+    provider.provider,
+    ...(accountKey ? [accountKey] : []),
+  ];
   const protectedAccountParts = new Set([0]);
   if (provider.account?.email) accountParts.push(provider.account.email);
   if (provider.account?.organization) {
@@ -881,11 +887,13 @@ function padCardToHeight(card: Card, height: number): Card {
   const missing = height - card.length;
   if (missing <= 0) return card;
   const bottom = card.at(-1);
-  const interiorLine = card[1];
-  if (!bottom || !interiorLine) return card;
+  // Row 1 carries content on account cards, so pad with a blank interior in
+  // the card's own border style rather than copying that row.
+  const borderStyle = card[1]?.[0]?.style;
+  if (!bottom || !borderStyle) return card;
   return [
     ...card.slice(0, -1),
-    ...Array.from({ length: missing }, () => [...interiorLine]),
+    ...Array.from({ length: missing }, () => interior([], borderStyle)),
     bottom,
   ];
 }
@@ -902,6 +910,36 @@ function boldHealthStyle(pct: number): "okBold" | "warnBold" | "critBold" {
 
 function humanize(text: string): string {
   return text.replace(/_/g, " ");
+}
+
+/**
+ * The account key only when it names an account the user configured. An
+ * expanded report fills `default` on every provider that selected one account,
+ * which is a schema artefact rather than something to show a human.
+ */
+function configuredAccountKey(provider: ProviderQuota): string | undefined {
+  return provider.accountKey && provider.accountKey !== "default"
+    ? provider.accountKey
+    : undefined;
+}
+
+function accountCardLines(
+  provider: ProviderQuota,
+  border: "border" | "borderDim",
+): Line[] {
+  const accountKey = configuredAccountKey(provider);
+  if (!accountKey) return [];
+  return [
+    interior(
+      [
+        {
+          text: truncate(`   account ${accountKey}`, CARD_INTERIOR),
+          style: "dim",
+        },
+      ],
+      border,
+    ),
+  ];
 }
 
 function truncate(text: string, width: number): string {

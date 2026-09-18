@@ -28,6 +28,7 @@ export const PROVIDER_IDS = [
 export type ProviderSource =
   | "oauth"
   | "pi:openai-codex"
+  | `pi:openai-codex-${string}`
   | "cli-rpc"
   | "cli"
   | "api"
@@ -249,8 +250,18 @@ export type DegradedSource = {
   error?: string;
 };
 
+export type ProviderAccount = {
+  /** Opaque local lane identity, stable across refresh and discovery order. */
+  accountKey: string;
+  /** Resolves undefined when the lane establishes no distinct account. */
+  fetchQuota(options: ProviderOptions): Promise<ProviderQuota | undefined>;
+  inspectAuth(options: ProviderOptions): Promise<AuthProviderReport>;
+};
+
 export type ProviderQuota = {
   provider: ProviderId;
+  /** Present in account-expanded reports; absent for the legacy single lane. */
+  accountKey?: string;
   /** Display name. Omitted from default `--json`; see `--full`. */
   label?: string;
   /** Report provenance. Omitted from default `--json`; see `--full`. */
@@ -298,7 +309,7 @@ export type ProviderQuota = {
 
 export type QuotaAxiResponse = {
   generatedAt: string;
-  schemaVersion: 5;
+  schemaVersion: 5 | 6;
   providers: ProviderQuota[];
   help?: string[];
 };
@@ -321,6 +332,7 @@ export type ProviderOptions = {
 export type ProviderAdapter = {
   id: ProviderId;
   label: string;
+  discoverAccounts?(): Promise<ProviderAccount[] | undefined>;
   fetchQuota(options: ProviderOptions): Promise<ProviderQuota>;
   inspectAuth(options: ProviderOptions): Promise<AuthProviderReport>;
 };
@@ -335,6 +347,7 @@ export type AuthSourceReport = {
 
 export type AuthProviderReport = {
   provider: ProviderId;
+  accountKey?: string;
   sources: AuthSourceReport[];
 };
 
@@ -367,6 +380,7 @@ export type ProviderStateSummary = Pick<
 >;
 
 export type ModelQuotaRecord = {
+  accountKey?: string;
   provider: ModelCatalogEntry["provider"];
   id: string;
   label: string;
@@ -378,7 +392,10 @@ export type ModelQuotaRecord = {
   state: ProviderStateSummary;
 };
 
-export type ModelReference = Pick<ModelQuotaRecord, "provider" | "id">;
+export type ModelReference = Pick<
+  ModelQuotaRecord,
+  "provider" | "accountKey" | "id"
+>;
 
 /** Opt-in ordering keys. Future keys require their own evidence and docs. */
 export type ModelSortKey = "runway";
@@ -391,7 +408,7 @@ export type ModelSortResult = {
 
 export type ModelsResponse = {
   generatedAt: string;
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   catalog: Pick<ModelCatalog, "version" | "provenance">;
   models: ModelQuotaRecord[];
   /** Provider/model window scopes with no corresponding catalog entry. */
